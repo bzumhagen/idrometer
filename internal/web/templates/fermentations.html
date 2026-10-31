@@ -1,0 +1,32 @@
+{{define "content"}}
+{{$p := .Prefs}}{{$multi := .Data.MultiDevice}}
+<h1>Fermentations</h1>
+<nav class="tabs" aria-label="Filter">
+  <a href="/fermentations" {{if eq .Data.Filter ""}}aria-current="true"{{end}}>All</a>
+  <a href="/fermentations?status=active" {{if eq .Data.Filter "active"}}aria-current="true"{{end}}>Active</a>
+  <a href="/fermentations?status=completed" {{if eq .Data.Filter "completed"}}aria-current="true"{{end}}>Completed</a>
+  <a href="/fermentations?status=deleted" {{if eq .Data.Filter "deleted"}}aria-current="true"{{end}}>Deleted</a>
+</nav>
+{{if .Data.Items}}
+<div class="table-wrap">
+<table class="rows">
+  <thead><tr><th>Name</th>{{if $multi}}<th>Device</th>{{end}}<th>Status</th><th>Started</th><th>Duration</th><th class="num">OG → now</th><th class="num">ABV</th></tr></thead>
+  <tbody>
+  {{range .Data.Items}}
+    <tr data-href="/fermentations/{{.ID}}">
+      <td><a href="/fermentations/{{.ID}}">{{.Name}}</a></td>
+      {{if $multi}}<td>{{.DeviceName}}</td>{{end}}
+      <td>{{if .DeletedAt}}<span class="badge deleted">deleted</span>{{else}}<span class="badge {{.Status}}">{{.Status}}</span>{{end}}</td>
+      <td>{{time .StartedAt}}</td>
+      <td>{{if .HasReadings}}{{duration (.LastAt.Sub .FirstAt)}}{{else}}–{{end}}</td>
+      <td class="num">{{if .HasReadings}}{{if .OG}}{{gravity $p (derefFloat .OG)}} → {{end}}{{gravity $p .LatestSG}}{{else}}–{{end}}</td>
+      <td class="num">{{if .ABV}}{{printf "%.1f" (derefFloat .ABV)}}%{{else}}–{{end}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{else}}
+<p class="empty">Nothing here yet.</p>
+{{end}}
+{{end}}

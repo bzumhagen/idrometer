@@ -1,0 +1,40 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{if .Title}}{{.Title}} · {{end}}idrometer</title>
+<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false}'>
+<link rel="icon" type="image/svg+xml" href="{{asset "favicon.svg"}}">
+<link rel="stylesheet" href="{{asset "app.css"}}">
+{{block "head" .}}{{end}}
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><img src="{{asset "logo.svg"}}" alt="idrometer" height="34"></a>
+  <nav aria-label="Main">
+    <a href="/" {{if eq .Nav "dashboard"}}aria-current="page"{{end}}>Dashboard</a>
+    <a href="/fermentations" {{if eq .Nav "fermentations"}}aria-current="page"{{end}}>Fermentations</a>
+    <a href="/recipes" {{if eq .Nav "recipes"}}aria-current="page"{{end}}>Recipes</a>
+    <a href="/compare" {{if eq .Nav "compare"}}aria-current="page"{{end}}>Compare</a>
+    <a href="/devices" {{if eq .Nav "devices"}}aria-current="page"{{end}}>Devices</a>
+    <a href="/settings" {{if eq .Nav "settings"}}aria-current="page"{{end}}>Settings</a>
+  </nav>
+  <div class="who">
+    {{if .Admin}}
+      <form method="post" action="/logout"><button class="nav-btn">Sign out</button></form>
+    {{else}}
+      <a href="/login">Sign in</a>
+    {{end}}
+  </div>
+</header>
+<main>
+  {{with .Flash}}<p class="flash {{if .Error}}err{{else}}ok{{end}}" role="status">{{.Text}}</p>{{end}}
+  {{template "content" .}}
+</main>
+<script src="{{asset "htmx.min.js"}}" defer></script>
+<script src="{{asset "app.js"}}" defer></script>
+{{block "scripts" .}}{{end}}
+</body>
+</html>
+{{end}}

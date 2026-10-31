@@ -1,0 +1,82 @@
+{{define "content"}}
+<h1>Devices</h1>
+<div class="device-grid">
+{{range .Data}}{{$dev := .Device}}{{$cal := .Calibration}}{{$id := printf "%d" $dev.ID}}
+<article class="card device" id="dev-{{$dev.ID}}">
+  <header class="dev-head">
+    <div>
+      <h2><span class="dot {{if stale $dev .Latest}}stale{{else}}online{{end}}" title="{{if stale $dev .Latest}}No recent reports{{else}}Reporting{{end}}"></span> {{$dev.Name}}</h2>
+      <p class="muted">{{$dev.Source}} · {{$dev.HardwareID}}</p>
+    </div>
+    <dl class="health">
+      <div><dt>Seen</dt><dd>{{ago $dev.LastSeenAt}}</dd></div>
+      <div><dt>Battery</dt><dd {{if lowBattery $dev.LastBatteryV}}class="warn"{{end}}>{{printf "%.2f" $dev.LastBatteryV}} V{{if lowBattery $dev.LastBatteryV}} · low{{end}}</dd></div>
+      <div><dt>Signal</dt><dd><span class="bars b{{rssiBars $dev.LastRSSI}}" aria-hidden="true"><i></i><i></i><i></i><i></i></span> {{$dev.LastRSSI}} dBm</dd></div>
+      {{if .Active}}<div><dt>Fermenting</dt><dd><a href="/fermentations/{{.Active.ID}}">{{.Active.Name}}</a></dd></div>{{end}}
+    </dl>
+  </header>
+
+  <section class="dev-settings">
+    <h3>Settings</h3>
+    {{if $.Admin}}
+    <form method="post" action="/devices/{{$dev.ID}}" class="stack settings-form">
+      <label>Name
+        <input name="name" value="{{$dev.DisplayName}}" placeholder="{{$dev.ReportedName}}" maxlength="80">
+      </label>
+      <label><span>New batch after (hours) {{hint (printf "gap-%s" $id) "If this device stops reporting for longer than this, its next reading starts a new fermentation. Empty uses the global setting."}}</span>
+        <input type="number" name="gap_hours" min="1" max="8760" step="any" value="{{gapHours $dev.GapThreshold}}" placeholder="{{globalGapHours $.Prefs}} (default)">
+      </label>
+      <label><span>Gravity reported as {{hint (printf "unit-%s" $id) "Applies to new readings only; stored readings keep the unit they were converted with."}}</span>
+        <select name="gravity_unit">
+          <option value="auto" {{if eq (printf "%s" $dev.GravityUnit) "auto"}}selected{{end}}>Auto-detect</option>
+          <option value="sg" {{if eq (printf "%s" $dev.GravityUnit) "sg"}}selected{{end}}>Specific gravity</option>
+          <option value="plato" {{if eq (printf "%s" $dev.GravityUnit) "plato"}}selected{{end}}>Degrees Plato</option>
+        </select>
+      </label>
+      <button class="btn-primary">Save</button>
+    </form>
+    {{else}}
+    <dl class="kv-list">
+      <div><dt>Name</dt><dd>{{$dev.Name}}</dd></div>
+      <div><dt>New fermentation after</dt><dd>{{if $dev.GapThreshold}}{{gapHours $dev.GapThreshold}} h{{else}}{{globalGapHours $.Prefs}} h (default){{end}}</dd></div>
+      <div><dt>Gravity reported as</dt><dd>{{$dev.GravityUnit}}</dd></div>
+    </dl>
+    {{end}}
+  </section>
+
+  <details class="dev-cal" data-cal data-angle="{{if .Latest}}{{.Latest.Angle}}{{end}}" data-device-sg="{{if .Latest}}{{.Latest.GravityDevice}}{{end}}">
+    <summary><h3>Calibration {{if $cal}}<span class="badge active">on</span>{{else}}<span class="badge">off</span>{{end}}
+      {{hint (printf "cal-%s" $id) "Gravity is calculated from the tilt angle: c0 + c1·angle + c2·angle² + c3·angle³. Past readings are recalculated too. Leave unused coefficients empty. See docs/calibration.md."}}</h3></summary>
+    {{if $.Admin}}
+    <form method="post" action="/devices/{{$dev.ID}}/calibration" class="stack">
+      <div class="coefs">
+        <label>c0 <input name="c0" inputmode="decimal" value="{{if $cal}}{{coef (index $cal.C 0)}}{{end}}"></label>
+        <label>c1 <input name="c1" inputmode="decimal" value="{{if $cal}}{{coef (index $cal.C 1)}}{{end}}"></label>
+        <label>c2 <input name="c2" inputmode="decimal" value="{{if $cal}}{{coef (index $cal.C 2)}}{{end}}"></label>
+        <label>c3 <input name="c3" inputmode="decimal" value="{{if $cal}}{{coef (index $cal.C 3)}}{{end}}"></label>
+      </div>
+      <label>Formula gives
+        <select name="unit">
+          <option value="sg" {{if $cal}}{{if eq (printf "%s" $cal.OutputUnit) "sg"}}selected{{end}}{{end}}>Specific gravity</option>
+          <option value="plato" {{if $cal}}{{if eq (printf "%s" $cal.OutputUnit) "plato"}}selected{{end}}{{end}}>Degrees Plato</option>
+        </select>
+      </label>
+      <label>Note <input name="note" maxlength="200" value="{{if $cal}}{{$cal.Note}}{{end}}"></label>
+      {{if .Latest}}<p class="cal-preview muted" data-preview aria-live="polite">Latest angle {{fmtAngle .Latest.Angle}}° · device says {{printf "%.4f" .Latest.GravityDevice}} SG</p>{{end}}
+      <button class="btn-primary">Save calibration</button>
+    </form>
+    {{if $cal}}
+    <form method="post" action="/devices/{{$dev.ID}}/calibration/clear" data-confirm="Remove the calibration and use the device's own gravity again?">
+      <button class="btn btn-danger">Remove calibration</button>
+    </form>
+    {{end}}
+    {{else if $cal}}
+    <p class="formula">gravity = {{coef (index $cal.C 0)}} + {{coef (index $cal.C 1)}}·angle + {{coef (index $cal.C 2)}}·angle² + {{coef (index $cal.C 3)}}·angle³ <span class="muted">({{$cal.OutputUnit}})</span></p>
+    {{else}}<p class="muted">Using the device's own gravity.</p>{{end}}
+  </details>
+</article>
+{{else}}
+<p class="empty">No devices yet.</p>
+{{end}}
+</div>
+{{end}}

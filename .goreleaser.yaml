@@ -1,0 +1,67 @@
+version: 2
+project_name: idrometer
+
+builds:
+  - id: idrometer
+    main: ./cmd/idrometer
+    binary: idrometer
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: ["-s -w -X main.version={{.Version}}"]
+
+archives:
+  - id: tarball
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - packaging/idrometer.service
+      - packaging/idrometer.env.example
+      - packaging/idrometer-ctl
+
+nfpms:
+  - id: deb
+    package_name: idrometer
+    formats: [deb]
+    vendor: idrometer
+    maintainer: Benjamin Zumhagen
+    homepage: https://github.com/bzumhagen/idrometer
+    description: Self-hosted fermentation logger for iSpindel hydrometers
+    license: MIT
+    section: misc
+    bindir: /usr/bin
+    file_name_template: "{{ .PackageName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    dependencies: [adduser, passwd, util-linux]
+    contents:
+      - src: packaging/idrometer.service
+        dst: /lib/systemd/system/idrometer.service
+      - src: packaging/idrometer.env.example
+        dst: /usr/share/idrometer/idrometer.env.example
+      - src: packaging/idrometer-ctl
+        dst: /usr/bin/idrometer-ctl
+        file_info:
+          mode: 0755
+      - src: LICENSE
+        dst: /usr/share/doc/idrometer/copyright
+    scripts:
+      postinstall: packaging/scripts/postinstall.sh
+      preremove: packaging/scripts/preremove.sh
+
+checksum:
+  name_template: checksums.txt
+
+sboms:
+  - artifacts: archive
+
+release:
+  extra_files:
+    - glob: scripts/lxc-install.sh
+    - glob: scripts/proxmox-install.sh
+
+changelog:
+  sort: asc
+  filters:
+    exclude: ["^docs:", "^test:", "^chore:"]

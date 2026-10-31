@@ -1,0 +1,219 @@
+{{define "head"}}<link rel="stylesheet" href="{{asset "uPlot.min.css"}}">{{end}}
+{{define "scripts"}}<script src="{{asset "uPlot.iife.min.js"}}"></script><script src="{{asset "chart.js"}}"></script>{{end}}
+{{define "content"}}
+{{$d := .Data.D}}{{$f := $d.Fermentation}}
+{{$live := and (eq (printf "%s" $f.Status) "active") (not $f.DeletedAt)}}
+<header class="page-head">
+  <div>
+    <h1>{{$f.Name}} {{if $f.DeletedAt}}<span class="badge deleted">deleted</span>{{else}}<span class="badge {{$f.Status}}">{{$f.Status}}</span>{{end}}</h1>
+    <p class="meta">
+      <a href="/devices#dev-{{$d.Device.ID}}">{{$d.Device.Name}}</a>
+      {{if $d.Recipe}}<span>· recipe <a href="/recipes/{{$d.Recipe.ID}}">{{$d.Recipe.Name}}</a></span>{{end}}
+      <span>· started {{time $f.StartedAt}}</span>
+      {{if $f.EndedAt}}<span>· ended {{time $f.EndedAt}}{{if $f.CloseReason}} ({{$f.CloseReason}}){{end}}</span>{{end}}
+      {{if $live}}<span>· last reading {{ago .Data.LastAt}}</span>{{end}}
+    </p>
+  </div>
+  <div class="actions">
+    {{if and .Admin (not $f.DeletedAt)}}
+    <button type="button" class="btn-primary" popovertarget="sheet-measure">Add measurement</button>
+    <button type="button" class="btn" popovertarget="sheet-event">Add event</button>
+    {{end}}
+    <button type="button" class="btn btn-ghost" popovertarget="menu-more" aria-label="More actions">⋯<span class="label"> More</span></button>
+  </div>
+</header>
+
+<div class="menu" id="menu-more" popover>
+  {{if .Admin}}
+    {{if not $f.DeletedAt}}
+    <button type="button" class="menu-item" popovertarget="sheet-edit">Edit details</button>
+    {{if not $f.Notes}}<button type="button" class="menu-item" popovertarget="sheet-edit">Add note</button>{{end}}
+    <button type="button" class="menu-item" popovertarget="sheet-exclude">Exclude readings…</button>
+    <button type="button" class="menu-item" popovertarget="sheet-split">Split…</button>
+    {{if .Data.Candidates}}<button type="button" class="menu-item" popovertarget="sheet-merge">Merge…</button>{{end}}
+    {{end}}
+  {{end}}
+  <a class="menu-item" href="/api/v1/fermentations/{{$f.ID}}/export.csv">Download CSV</a>
+  <a class="menu-item" href="/api/v1/fermentations/{{$f.ID}}/export.json">Download JSON</a>
+  {{if .Admin}}
+    <hr>
+    {{if not $f.DeletedAt}}
+      {{if $live}}
+        <form method="post" action="/fermentations/{{$f.ID}}/close"><button class="menu-item">Complete fermentation</button></form>
+      {{else}}
+        <form method="post" action="/fermentations/{{$f.ID}}/reopen"><button class="menu-item">Reopen</button></form>
+      {{end}}
+      <form method="post" action="/fermentations/{{$f.ID}}/delete" data-confirm="Delete this fermentation? You can restore it later."><button class="menu-item danger-text">Delete</button></form>
+    {{else}}
+      <form method="post" action="/fermentations/{{$f.ID}}/restore"><button class="menu-item">Restore</button></form>
+    {{end}}
+  {{end}}
+</div>
+
+<div class="ferm-grid">
+  <aside class="side">
+    <section class="stats hero">
+      {{range .Data.Stats.Hero}}
+      <div class="stat"><span class="label"><span>{{.Label}}</span>{{if .Help}}{{hint (printf "s-%s" .ID) .Help}}{{end}}</span>
+        <span class="value">{{.Value}}</span>{{if .Sub}}<span class="sub">{{.Sub}}</span>{{end}}</div>
+      {{end}}
+    </section>
+    <section class="stats detail">
+      {{range .Data.Stats.Detail}}
+      <div class="stat"><span class="label">{{.Label}}</span><span class="value">{{.Value}}</span>{{if .Sub}}<span class="sub">{{.Sub}}</span>{{end}}</div>
+      {{end}}
+    </section>
+  </aside>
+
+  <div class="maincol">
+    <section class="chart-wrap" id="chart-section">
+      <div class="chart-tools">
+        <span class="presets" role="group" aria-label="Time range" hidden>
+          <button type="button" class="btn" data-span="86400">1d</button>
+          <button type="button" class="btn" data-span="259200">3d</button>
+          <button type="button" class="btn" data-span="604800">7d</button>
+          <button type="button" class="btn" data-span="0">All</button>
+          <button type="button" class="btn" id="reset-zoom" hidden>Reset zoom</button>
+        </span>
+        <span class="muted" id="live-status"></span>
+        <label><input type="checkbox" id="toggle-health"> Battery<span class="wide-only"> &amp; signal</span></label>
+        {{if gt $d.ExcludedCount 0}}<label><input type="checkbox" id="toggle-excluded"> Show {{$d.ExcludedCount}} excluded</label>{{end}}
+      </div>
+      <div id="chart" data-id="{{$f.ID}}" data-live="{{if $live}}1{{end}}" data-admin="{{if and .Admin (not $f.DeletedAt)}}1{{end}}"
+           data-series="/api/v1/fermentations/{{$f.ID}}/series" data-stream="/fermentations/{{$f.ID}}/stream"></div>
+      <div id="chart-health" hidden></div>
+      {{if and .Admin (not $f.DeletedAt)}}
+      <div class="range-bar" id="range-bar" hidden>
+        <span>Showing <strong id="range-text"></strong></span>
+        <form method="post" action="/fermentations/{{$f.ID}}/exclude">
+          <input type="hidden" name="tz" value="">
+          <input type="hidden" name="mode" value="exclude">
+          <input type="hidden" name="return_to" value="chart">
+          <input type="datetime-local" step="1" name="from" hidden>
+          <input type="datetime-local" step="1" name="to" hidden>
+          <button class="btn">Exclude these readings</button>
+        </form>
+        <button type="button" class="btn" id="range-split">Split here…</button>
+      </div>
+      {{end}}
+    </section>
+
+    <section id="log">
+      <h2>Log</h2>
+      {{if .Data.Log}}
+      <ul class="log">
+        {{range .Data.Log}}
+        <li>
+          <span class="when">{{time .At}}</span>
+          <strong>{{.Kind}}</strong>
+          {{if .Value}}<span class="val">{{.Value}}</span>{{end}}
+          {{if .Note}}<span class="note">{{.Note}}</span>{{end}}
+          {{if $.Admin}}<form method="post" action="{{.DeleteURL}}" class="inline" data-confirm="{{.Confirm}}">
+            <input type="hidden" name="return_to" value="log"><button class="link">Remove</button></form>{{end}}
+        </li>
+        {{end}}
+      </ul>
+      {{else}}<p class="muted">Nothing logged yet.</p>{{end}}
+    </section>
+
+    {{if $f.Notes}}
+    <section class="notes">
+      <h2>Notes {{if and .Admin (not $f.DeletedAt)}}<button type="button" class="link" popovertarget="sheet-edit">Edit</button>{{end}}</h2>
+      <p class="pre">{{$f.Notes}}</p>
+    </section>
+    {{end}}
+  </div>
+</div>
+
+{{if and .Admin (not $f.DeletedAt)}}
+<div class="sheet" id="sheet-measure" popover>
+  <h2>Add measurement</h2>
+  <form method="post" action="/fermentations/{{$f.ID}}/manual" class="stack">
+    <input type="hidden" name="tz" value="">
+    <input type="hidden" name="return_to" value="log">
+    <label>When <input type="datetime-local" step="1" name="taken" data-now required></label>
+    <label>Gravity ({{.Prefs.GravityLabel}}) <input name="gravity" inputmode="decimal" required placeholder="{{gravityPlaceholder .Prefs}}"></label>
+    <label>Temperature, optional ({{.Prefs.TempLabel}}) <input name="temp" inputmode="decimal"></label>
+    <label>Method
+      <select name="method"><option value="hydrometer">Hydrometer</option><option value="refractometer">Refractometer</option><option value="other">Other</option></select>
+    </label>
+    <label>Use as
+      <select name="mark"><option value="">Just a measurement</option><option value="og">Original gravity (OG)</option><option value="fg">Final gravity (FG)</option></select>
+    </label>
+    <label>Note <input name="note" maxlength="200"></label>
+    <div class="sheet-actions"><button class="btn-primary">Add measurement</button><button type="button" class="btn" popovertarget="sheet-measure" popovertargetaction="hide">Cancel</button></div>
+  </form>
+</div>
+
+<div class="sheet" id="sheet-event" popover>
+  <h2>Add event</h2>
+  <form method="post" action="/fermentations/{{$f.ID}}/annotations" class="stack">
+    <input type="hidden" name="tz" value="">
+    <input type="hidden" name="return_to" value="log">
+    <label>When <input type="datetime-local" step="1" name="at" data-now required></label>
+    <label>What
+      <select name="kind">{{range .Data.EventTypes}}<option>{{.Name}}</option>{{end}}</select>
+    </label>
+    <label>Note <input name="note" maxlength="200" placeholder="e.g. 50 g Citra"></label>
+    <div class="sheet-actions"><button class="btn-primary">Add event</button><a class="btn btn-ghost" href="/settings#annotation-types">Edit types</a><button type="button" class="btn" popovertarget="sheet-event" popovertargetaction="hide">Cancel</button></div>
+  </form>
+</div>
+
+<div class="sheet" id="sheet-edit" popover>
+  <h2>Edit details</h2>
+  <form method="post" action="/fermentations/{{$f.ID}}/update" class="stack">
+    <label>Name <input name="name" value="{{$f.Name}}" required maxlength="120"></label>
+    <label>Notes <textarea name="notes" rows="4">{{$f.Notes}}</textarea></label>
+    <label>Recipe
+      <select name="recipe">
+        <option value="">None</option>
+        {{range $d.Recipes}}<option value="{{.ID}}" {{if eq .ID (recipeID $f)}}selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+    </label>
+    <label><span>Original gravity (SG) {{hint "og" "Overrides the estimate taken from the first hour of readings. A measurement marked OG wins over this."}}</span>
+      <input name="og" inputmode="decimal" value="{{if $f.OGOverride}}{{printf "%.3f" (derefFloat $f.OGOverride)}}{{end}}" placeholder="auto">
+    </label>
+    <div class="sheet-actions"><button class="btn-primary">Save</button><button type="button" class="btn" popovertarget="sheet-edit" popovertargetaction="hide">Cancel</button></div>
+  </form>
+</div>
+
+<div class="sheet" id="sheet-exclude" popover>
+  <h2>Exclude readings</h2>
+  <form method="post" action="/fermentations/{{$f.ID}}/exclude" id="exclude-form" class="stack">
+    <input type="hidden" name="tz" value="">
+    <input type="hidden" name="return_to" value="chart">
+    <label>From <input type="datetime-local" step="1" name="from" required></label>
+    <label>To <input type="datetime-local" step="1" name="to" required></label>
+    <label>Action
+      <select name="mode"><option value="exclude">Exclude</option><option value="include">Include again</option></select>
+    </label>
+    <div class="sheet-actions"><button class="btn-primary">Apply</button><button type="button" class="btn" popovertarget="sheet-exclude" popovertargetaction="hide">Cancel</button></div>
+  </form>
+</div>
+
+<div class="sheet" id="sheet-split" popover>
+  <h2>Split</h2>
+  <form method="post" action="/fermentations/{{$f.ID}}/split" id="split-form" class="stack">
+    <input type="hidden" name="tz" value="">
+    <label><span>Split at {{hint "split" "Readings from this time onward become a new fermentation."}}</span>
+      <input type="datetime-local" step="1" name="at" required></label>
+    <div class="sheet-actions"><button class="btn-primary">Split</button><button type="button" class="btn" popovertarget="sheet-split" popovertargetaction="hide">Cancel</button></div>
+  </form>
+</div>
+
+{{if .Data.Candidates}}
+<div class="sheet" id="sheet-merge" popover>
+  <h2>Merge</h2>
+  <form method="post" action="/fermentations/{{$f.ID}}/merge" class="stack">
+    <label><span>Merge in {{hint "merge" "Only fermentations from the same device whose readings do not overlap in time."}}</span>
+      <select name="other" required>
+        <option value="">Choose…</option>
+        {{range .Data.Candidates}}<option value="{{.ID}}">{{.Name}} ({{.Status}})</option>{{end}}
+      </select>
+    </label>
+    <div class="sheet-actions"><button class="btn-primary">Merge</button><button type="button" class="btn" popovertarget="sheet-merge" popovertargetaction="hide">Cancel</button></div>
+  </form>
+</div>
+{{end}}
+{{end}}
+{{end}}

@@ -1,0 +1,27 @@
+{{define "head"}}<link rel="stylesheet" href="{{asset "uPlot.min.css"}}">{{end}}
+{{define "scripts"}}<script src="{{asset "uPlot.iife.min.js"}}"></script><script src="{{asset "compare.js"}}"></script>{{end}}
+{{define "content"}}
+<h1>Compare</h1>
+{{if lt (len .Data.All) 2}}
+<p class="muted">Need at least two fermentations to compare.</p>
+{{else}}
+<div class="compare-grid">
+  <form method="get" action="/compare" class="stack" id="compare-form">
+    <div class="picker">
+      {{range .Data.All}}
+      <label><input type="checkbox" value="{{.ID}}" {{if index $.Data.Selected .ID}}checked{{end}}>
+        {{.Name}} <span class="muted">({{.DeviceName}}, {{.Status}})</span></label>
+      {{end}}
+    </div>
+    <input type="hidden" name="ids" value="{{.Data.IDs}}">
+    <label><input type="checkbox" id="normalise"> Show as attenuation %</label>
+    <button class="btn-primary nojs-only">Compare</button>
+  </form>
+  <section class="chart-wrap">
+    <div id="compare-chart" data-ids="{{.Data.IDs}}" data-list="/api/v1/fermentations"
+         data-series="/api/v1/fermentations/{id}/series"></div>
+    <p class="muted" id="compare-note"></p>
+  </section>
+</div>
+{{end}}
+{{end}}

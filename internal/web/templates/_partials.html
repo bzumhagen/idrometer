@@ -1,0 +1,34 @@
+{{define "devices"}}
+{{$p := .Prefs}}
+{{range .Data}}
+<article class="card dash-card">
+  <header>
+    <h2><span class="dot {{if stale .Device .Latest}}stale{{else}}online{{end}}"></span> {{.Device.Name}}</h2>
+    <span class="muted">seen {{ago .Device.LastSeenAt}}</span>
+  </header>
+  {{if stale .Device .Latest}}<p class="warn small">No recent reports from this device.</p>{{end}}
+  {{if .Active}}
+    <p><a href="/fermentations/{{.Active.ID}}">{{.Active.Name}}</a> <span class="badge active">active</span></p>
+    {{if .Latest}}
+    <dl class="kv">
+      <div><dt>Latest gravity</dt><dd class="big">{{gravity $p .Latest.Gravity}}</dd></div>
+      <div><dt>Temperature</dt><dd class="big">{{temp $p .Latest.TemperatureC}}</dd></div>
+      {{if .Rate}}<div><dt>Trend</dt><dd class="big">{{trend $p .Rate .Latest.Gravity}}</dd></div>{{end}}
+    </dl>
+    {{spark .Spark}}
+    {{end}}
+  {{else}}
+    <p class="muted">No active fermentation.</p>
+  {{end}}
+  <footer class="muted">
+    <span {{if lowBattery .Device.LastBatteryV}}class="warn"{{end}}>Battery {{printf "%.2f" .Device.LastBatteryV}} V{{if lowBattery .Device.LastBatteryV}} · low{{end}}</span>
+    · {{.Device.LastRSSI}} dBm
+  </footer>
+</article>
+{{else}}
+<div class="empty">
+  <p><strong>No devices yet.</strong></p>
+  <p>Point your iSpindel at <code>/api/v1/ingest/ispindel</code> with your ingest token.</p>
+</div>
+{{end}}
+{{end}}

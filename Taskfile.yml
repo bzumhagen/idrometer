@@ -1,0 +1,95 @@
+# https://taskfile.dev — run `task` to list tasks.
+version: "3"
+
+vars:
+  LINT: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+  VULN: go run golang.org/x/vuln/cmd/govulncheck@latest
+  GORELEASER: go run github.com/goreleaser/goreleaser/v2@latest
+
+tasks:
+  default:
+    silent: true
+    cmds: [task --list]
+
+  dev:
+    desc: "One command playground: server + admin password + simulated 6-day fermentation (override: DEV_PASSWORD, DEV_RESET=true, DEV_SIMULATE=false, DEV_LIVE=true, DEV_DAYS, IDROMETER_LISTEN, ...)"
+    env:
+      DEV_DIR: '{{.DEV_DIR}}'
+      DEV_PASSWORD: '{{.DEV_PASSWORD}}'
+      DEV_SIMULATE: '{{.DEV_SIMULATE}}'
+      DEV_DAYS: '{{.DEV_DAYS}}'
+      DEV_LIVE: '{{.DEV_LIVE}}'
+      DEV_INTERVAL: '{{.DEV_INTERVAL}}'
+      DEV_RESET: '{{.DEV_RESET}}'
+      IDROMETER_LISTEN: '{{.IDROMETER_LISTEN}}'
+      IDROMETER_INGEST_TOKEN: '{{.IDROMETER_INGEST_TOKEN}}'
+      DEV_DB: '{{.DEV_DB}}'
+    cmds: [scripts/dev.sh]
+
+  build:
+    desc: Build the idrometer and simulate binaries into bin/
+    cmds:
+      - go build -o bin/idrometer ./cmd/idrometer
+      - go build -o bin/simulate ./cmd/simulate
+
+  test:
+    desc: Run all tests with the race detector
+    cmds: [go test -race -count=1 ./...]
+
+  lint:
+    desc: Run golangci-lint (includes the architecture import rules)
+    cmds: ["{{.LINT}} run ./..."]
+
+  vuln:
+    desc: Scan for known vulnerabilities in called code
+    cmds: ["{{.VULN}} ./..."]
+
+  shellcheck:
+    desc: Lint the install and packaging scripts
+    cmds: [shellcheck scripts/*.sh packaging/scripts/*.sh packaging/idrometer-ctl]
+
+  check:
+    desc: Everything CI runs (vet, tests, lint, vulnerabilities)
+    cmds:
+      - go vet ./...
+      - task: test
+      - task: lint
+      - task: vuln
+
+  serve:
+    desc: Run the server locally on :8080 (token and DB path come from the env defaults above)
+    env:
+      IDROMETER_INGEST_TOKEN: '{{.IDROMETER_INGEST_TOKEN | default "dev-token-0123456789"}}'
+      IDROMETER_DB_PATH: '{{.IDROMETER_DB_PATH | default ".dev/idrometer.db"}}'
+    cmds: [go run ./cmd/idrometer serve]
+
+  set-password:
+    desc: "Set the admin password (PASSWORD=... or you are prompted)"
+    env:
+      IDROMETER_INGEST_TOKEN: '{{.IDROMETER_INGEST_TOKEN | default "dev-token-0123456789"}}'
+      IDROMETER_DB_PATH: '{{.IDROMETER_DB_PATH | default ".dev/idrometer.db"}}'
+    cmds:
+      - '{{if .PASSWORD}}printf "%s\n" "{{.PASSWORD}}" | {{end}}go run ./cmd/idrometer admin set-password'
+
+  simulate:
+    desc: "Post live fake readings to the local server (START_DAY=6, COUNT=200, INTERVAL=1s); each advances the curve 15 minutes"
+    env:
+      IDROMETER_INGEST_TOKEN: '{{.IDROMETER_INGEST_TOKEN | default "dev-token-0123456789"}}'
+      IDROMETER_DB_PATH: '{{.IDROMETER_DB_PATH | default ".dev/idrometer.db"}}'
+    cmds:
+      - go run ./cmd/simulate -token "$IDROMETER_INGEST_TOKEN" -start-day {{.START_DAY | default 6}} -count {{.COUNT | default 200}} -interval {{.INTERVAL | default "1s"}}
+
+  backup:
+    desc: "Write a database snapshot (OUT=backup.db)"
+    env:
+      IDROMETER_INGEST_TOKEN: '{{.IDROMETER_INGEST_TOKEN | default "dev-token-0123456789"}}'
+      IDROMETER_DB_PATH: '{{.IDROMETER_DB_PATH | default ".dev/idrometer.db"}}'
+    cmds: ['go run ./cmd/idrometer backup --out {{.OUT | default "backup.db"}}']
+
+  snapshot:
+    desc: Build release archives and .deb packages locally into dist/ (nothing is published)
+    cmds: ["{{.GORELEASER}} release --snapshot --clean"]
+
+  clean:
+    desc: Remove build output and the local dev database
+    cmds: [rm -rf bin dist idrometer.db idrometer.db-wal idrometer.db-shm]

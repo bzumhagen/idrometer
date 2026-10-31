@@ -1,0 +1,69 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - depguard
+    - errorlint
+    - bodyclose
+    - misspell
+  settings:
+    errcheck:
+      # Conventional "best effort" calls: writes to a client that may have gone,
+      # and Close on read paths.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (io.Closer).Close
+        - (io.ReadCloser).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.DB).Close
+        - (*github.com/bzumhagen/idrometer/internal/store/sqlite.Store).Close
+    depguard:
+      rules:
+        # The domain is the center of the onion: standard library only.
+        domain-stdlib-only:
+          files:
+            - "**/internal/domain/**"
+            - "!$test"
+          list-mode: strict
+          allow:
+            - $gostd
+        # Storage adapters depend inward on the domain, never on other adapters.
+        store-inward-only:
+          files:
+            - "**/internal/store/**"
+          deny:
+            - pkg: github.com/bzumhagen/idrometer/internal/api
+              desc: store adapters must not import the API layer
+            - pkg: github.com/bzumhagen/idrometer/internal/web
+              desc: store adapters must not import the web layer
+            - pkg: github.com/bzumhagen/idrometer/internal/clients
+              desc: store adapters must not import outbound clients
+        # Inbound adapters talk to the domain, not to concrete outbound adapters.
+        inbound-inward-only:
+          files:
+            - "**/internal/api/**"
+            - "**/internal/web/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/bzumhagen/idrometer/internal/store
+              desc: api/web must depend on domain ports, not on a store
+            - pkg: github.com/bzumhagen/idrometer/internal/clients
+              desc: api/web must depend on domain ports, not on clients
+        # Outbound clients implement domain ports only.
+        clients-inward-only:
+          files:
+            - "**/internal/clients/**"
+          deny:
+            - pkg: github.com/bzumhagen/idrometer/internal/store
+              desc: clients must not import stores
+            - pkg: github.com/bzumhagen/idrometer/internal/api
+              desc: clients must not import the API layer
+            - pkg: github.com/bzumhagen/idrometer/internal/web
+              desc: clients must not import the web layer
+
+formatters:
+  enable:
+    - gofmt

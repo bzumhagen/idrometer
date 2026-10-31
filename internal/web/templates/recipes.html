@@ -1,0 +1,39 @@
+{{define "content"}}
+{{$p := .Prefs}}
+<header class="page-head"><h1>Recipes</h1>{{if .Admin}}<div class="actions"><button type="button" class="btn-primary" popovertarget="sheet-recipe">New recipe</button></div>{{end}}</header>
+{{if .Data.Items}}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Name</th><th>Style</th><th class="num">Target OG</th><th class="num">Target FG</th><th class="num">Batches</th></tr></thead>
+  <tbody>
+  {{range .Data.Items}}
+    <tr>
+      <td><a href="/recipes/{{.ID}}">{{.Name}}</a></td>
+      <td>{{.Style}}</td>
+      <td class="num">{{if .TargetOG}}{{gravity $p (derefFloat .TargetOG)}}{{else}}–{{end}}</td>
+      <td class="num">{{if .TargetFG}}{{gravity $p (derefFloat .TargetFG)}}{{else}}–{{end}}</td>
+      <td class="num">{{.Fermentations}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{else}}
+<p class="empty">No recipes yet.</p>
+{{end}}
+
+{{if .Admin}}
+<div class="sheet" id="sheet-recipe" popover>
+  <h2>New recipe</h2>
+  <form method="post" action="/recipes" class="stack">
+    <label>Name <input name="name" required maxlength="120"></label>
+    <label>Style <input name="style" maxlength="80" placeholder="Hefeweizen"></label>
+    <label>Target OG ({{.Prefs.GravityLabel}}) <input name="target_og" inputmode="decimal" placeholder="{{gravityPlaceholder .Prefs}}"></label>
+    <label>Target FG ({{.Prefs.GravityLabel}}) <input name="target_fg" inputmode="decimal"></label>
+    <label>Yeast <input name="yeast" maxlength="120"></label>
+    <label>Notes <textarea name="notes" rows="3"></textarea></label>
+    <div class="sheet-actions"><button class="btn-primary">Create recipe</button><button type="button" class="btn" popovertarget="sheet-recipe" popovertargetaction="hide">Cancel</button></div>
+  </form>
+</div>
+{{end}}
+{{end}}

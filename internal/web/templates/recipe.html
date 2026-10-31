@@ -1,0 +1,55 @@
+{{define "content"}}
+{{$p := .Prefs}}{{$r := .Data.D.Recipe}}
+<header class="page-head">
+  <div>
+    <h1>{{$r.Name}}</h1>
+    <p class="meta">{{if $r.Style}}{{$r.Style}} · {{end}}{{if $r.Yeast}}yeast {{$r.Yeast}} · {{end}}
+  target {{if $r.TargetOG}}{{gravity $p (derefFloat $r.TargetOG)}}{{else}}–{{end}} →
+  {{if $r.TargetFG}}{{gravity $p (derefFloat $r.TargetFG)}}{{else}}–{{end}}</p>
+  </div>
+  {{if .Admin}}
+  <div class="actions">
+    <button type="button" class="btn-primary" popovertarget="sheet-recipe-edit">Edit</button>
+    <form method="post" action="/recipes/{{$r.ID}}/delete" data-confirm="Delete this recipe? Fermentations that used it are kept."><button class="btn btn-danger">Delete</button></form>
+  </div>
+  {{end}}
+</header>
+{{if $r.Notes}}<p class="pre">{{$r.Notes}}</p>{{end}}
+
+<h2>Batches</h2>
+{{if .Data.D.Fermentations}}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Name</th><th>Status</th><th>Started</th><th class="num">Latest</th></tr></thead>
+  <tbody>
+  {{range .Data.D.Fermentations}}
+    <tr>
+      <td><a href="/fermentations/{{.ID}}">{{.Name}}</a></td>
+      <td>{{if .DeletedAt}}<span class="badge deleted">deleted</span>{{else}}<span class="badge {{.Status}}">{{.Status}}</span>{{end}}</td>
+      <td>{{time .StartedAt}}</td>
+      <td class="num">{{if .HasReadings}}{{gravity $p .LatestSG}}{{else}}–{{end}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+<p><a class="btn" href="/compare?ids={{.Data.CompareIDs}}">Compare these batches</a></p>
+{{else}}
+<p class="empty">No batches yet.</p>
+{{end}}
+
+{{if .Admin}}
+<div class="sheet" id="sheet-recipe-edit" popover>
+  <h2>Edit recipe</h2>
+  <form method="post" action="/recipes/{{$r.ID}}" class="stack">
+    <label>Name <input name="name" value="{{$r.Name}}" required maxlength="120"></label>
+    <label>Style <input name="style" value="{{$r.Style}}" maxlength="80"></label>
+    <label>Target OG ({{.Prefs.GravityLabel}}) <input name="target_og" inputmode="decimal" value="{{gravityInput $p $r.TargetOG}}"></label>
+    <label>Target FG ({{.Prefs.GravityLabel}}) <input name="target_fg" inputmode="decimal" value="{{gravityInput $p $r.TargetFG}}"></label>
+    <label>Yeast <input name="yeast" value="{{$r.Yeast}}" maxlength="120"></label>
+    <label>Notes <textarea name="notes" rows="3">{{$r.Notes}}</textarea></label>
+    <div class="sheet-actions"><button class="btn-primary">Save</button><button type="button" class="btn" popovertarget="sheet-recipe-edit" popovertargetaction="hide">Cancel</button></div>
+  </form>
+</div>
+{{end}}
+{{end}}

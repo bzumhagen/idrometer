@@ -1,0 +1,51 @@
+[Unit]
+Description=idrometer fermentation logger
+Documentation=https://github.com/bzumhagen/idrometer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=idrometer
+Group=idrometer
+EnvironmentFile=/etc/idrometer/idrometer.env
+ExecStart=/usr/bin/idrometer serve
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+
+# /var/lib/idrometer, owned by the service user and the only writable path.
+StateDirectory=idrometer
+StateDirectoryMode=0750
+UMask=0077
+
+# Hardening. Inside an unprivileged LXC container the container needs the
+# "nesting" feature for the namespace-based options to work.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+
+[Install]
+WantedBy=multi-user.target

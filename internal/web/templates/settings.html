@@ -1,0 +1,72 @@
+{{define "content"}}
+<h1>Settings</h1>
+{{if .Admin}}
+<form method="post" action="/settings" class="settings-grid">
+  <fieldset class="stack">
+    <legend>Display units</legend>
+    <label>Gravity
+      <select name="gravity">
+        <option value="sg" {{if eq .Prefs.Gravity "sg"}}selected{{end}}>Specific gravity (1.050)</option>
+        <option value="plato" {{if eq .Prefs.Gravity "plato"}}selected{{end}}>Degrees Plato (12.4 °P)</option>
+      </select>
+    </label>
+    <label>Temperature
+      <select name="temp">
+        <option value="c" {{if eq .Prefs.Temp "c"}}selected{{end}}>Celsius</option>
+        <option value="f" {{if eq .Prefs.Temp "f"}}selected{{end}}>Fahrenheit</option>
+      </select>
+    </label>
+  </fieldset>
+  <fieldset class="stack">
+    <legend>New fermentations</legend>
+    <label><span>New fermentation after (hours) {{hint "gap" "If a device is silent for longer than this, its next reading starts a new fermentation. Each device can override it on the Devices page."}}</span>
+      <input type="number" name="gap_hours" min="1" max="8760" step="any" value="{{globalGapHours .Prefs}}" required>
+    </label>
+  </fieldset>
+  <div class="form-actions"><button class="btn-primary">Save</button></div>
+</form>
+{{with .Data.Ingest}}
+<section id="ingest" class="ingest">
+  <h2>iSpindel setup {{hint "ingest" "Enter these in the iSpindel's configuration page, using this server's address on your local network and its plain-HTTP port. The device cannot speak HTTPS, so do not use the web address you reach this page by if it goes through a TLS proxy."}}</h2>
+  <dl class="kv-list">
+    <div><dt>Service type</dt><dd>HTTP</dd></div>
+    <div><dt>Port</dt><dd>{{if .Port}}{{.Port}}{{else}}8080{{end}}</dd></div>
+    <div><dt>Path</dt><dd><code>{{.Path}}</code></dd></div>
+    <div><dt>Token</dt><dd>
+      <details class="reveal"><summary>Show token</summary><code class="token">{{.Token}}</code></details>
+    </dd></div>
+  </dl>
+</section>
+{{end}}
+<section id="annotation-types" class="annotation-types">
+  <h2>Event types {{hint "atypes" "The choices offered when you add an event to a fermentation. Renaming a type relabels events already logged with it; removing one leaves them as they are."}}</h2>
+  <ul class="plain">
+    {{range .Data.Types}}
+    <li>
+      <form method="post" action="/annotation-types/{{.ID}}" class="inline-form">
+        <input name="name" value="{{.Name}}" required maxlength="40" aria-label="Name">
+        <button class="btn">Rename</button>
+      </form>
+      <form method="post" action="/annotation-types/{{.ID}}/delete" class="inline-form" data-confirm="Remove &quot;{{.Name}}&quot; from the list? Events already logged keep it.">
+        <button class="btn btn-danger">Remove</button>
+      </form>
+    </li>
+    {{end}}
+  </ul>
+  <form method="post" action="/annotation-types" class="inline-form">
+    <input name="name" required maxlength="40" placeholder="New event type" aria-label="New event type">
+    <button class="btn-primary">Add</button>
+  </form>
+</section>
+{{else}}
+<dl class="kv-list">
+  <div><dt>Gravity</dt><dd>{{if eq .Prefs.Gravity "plato"}}Degrees Plato{{else}}Specific gravity{{end}}</dd></div>
+  <div><dt>Temperature</dt><dd>{{if eq .Prefs.Temp "f"}}Fahrenheit{{else}}Celsius{{end}}</dd></div>
+  <div><dt>New fermentation after</dt><dd>{{globalGapHours .Prefs}} h</dd></div>
+</dl>
+<section id="annotation-types" class="annotation-types">
+  <h2>Event types</h2>
+  <p>{{range $i, $t := .Data.Types}}{{if $i}}, {{end}}{{$t.Name}}{{end}}</p>
+</section>
+{{end}}
+{{end}}
